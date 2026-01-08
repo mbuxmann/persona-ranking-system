@@ -16,6 +16,7 @@ interface RunSectionProps {
   onExport: (promptId: string) => void;
   isDeploying: boolean;
   isExporting: boolean;
+  bestPromptId: string | null;
 }
 
 export function RunSection({
@@ -30,6 +31,7 @@ export function RunSection({
   onExport,
   isDeploying,
   isExporting,
+  bestPromptId,
 }: RunSectionProps) {
   const bestPrompt = prompts[0];
 
@@ -60,8 +62,8 @@ export function RunSection({
         <div className="flex items-center gap-4">
           {bestPrompt?.mae !== null && (
             <span className="text-sm text-muted-foreground">
-              Best: MAE {bestPrompt.mae?.toFixed(2)}, Kendall{" "}
-              {bestPrompt.kendallTau?.toFixed(3)}
+              Best: Kendall {bestPrompt.kendallTau?.toFixed(3)}, MAE{" "}
+              {bestPrompt.mae?.toFixed(2)}
             </span>
           )}
           {isExpanded ? (
@@ -85,6 +87,7 @@ export function RunSection({
               onExport={onExport}
               isDeploying={isDeploying}
               isExporting={isExporting}
+              isBestOverall={prompt.id === bestPromptId}
             />
           ))}
         </div>

@@ -12,6 +12,29 @@ import { RunSection } from "./run-section";
 import { usePromptGrouping } from "../hooks";
 import type { PromptData, OptimizationRun } from "../types";
 
+/** Find the best prompt across all runs using Kendall > Spearman > MAE comparison */
+function findBestPromptId(prompts: PromptData[]): string | null {
+  const evaluatedPrompts = prompts.filter(
+    (p) => !p.isBaseline && p.kendallTau !== null
+  );
+
+  if (evaluatedPrompts.length === 0) return null;
+
+  // Sort by Kendall (higher) > Spearman (higher) > MAE (lower)
+  const sorted = [...evaluatedPrompts].sort((a, b) => {
+    const kendallDiff = (b.kendallTau ?? 0) - (a.kendallTau ?? 0);
+    if (kendallDiff !== 0) return kendallDiff;
+
+    const spearmanDiff =
+      (b.spearmanCorrelation ?? 0) - (a.spearmanCorrelation ?? 0);
+    if (spearmanDiff !== 0) return spearmanDiff;
+
+    return (a.mae ?? Infinity) - (b.mae ?? Infinity);
+  });
+
+  return sorted[0]?.id ?? null;
+}
+
 interface PromptVersionsListProps {
   prompts: PromptData[];
   optimizationRuns: OptimizationRun[];
@@ -42,6 +65,9 @@ export function PromptVersionsList({
     isRunExpanded,
     toggleRun,
   } = usePromptGrouping(prompts, optimizationRuns);
+
+  // Find the single best prompt across all runs
+  const bestPromptId = findBestPromptId(prompts);
 
   if (prompts.length === 0) {
     return (
@@ -86,6 +112,7 @@ export function PromptVersionsList({
               onExport={onExport}
               isDeploying={isDeploying}
               isExporting={isExporting}
+              bestPromptId={bestPromptId}
             />
           ))}
 

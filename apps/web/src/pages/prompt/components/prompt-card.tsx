@@ -19,6 +19,7 @@ interface PromptCardProps {
   onExport: (promptId: string) => void;
   isDeploying: boolean;
   isExporting: boolean;
+  isBestOverall?: boolean;
 }
 
 export const PromptCard = memo(function PromptCard({
@@ -30,6 +31,7 @@ export const PromptCard = memo(function PromptCard({
   onExport,
   isDeploying,
   isExporting,
+  isBestOverall = false,
 }: PromptCardProps) {
   const isExpanded = expandedPromptIds.has(prompt.id);
 
@@ -45,13 +47,16 @@ export const PromptCard = memo(function PromptCard({
             </Badge>
           )}
           {prompt.isBaseline && <Badge variant="outline">Baseline</Badge>}
-          {prompt.beamRank === 1 && !isBaseline && (
+          {isBestOverall && !isBaseline && (
             <Badge
               variant="default"
               className="bg-yellow-500 hover:bg-yellow-600"
             >
               Best
             </Badge>
+          )}
+          {prompt.beamRank === 1 && !isBaseline && !isBestOverall && (
+            <Badge variant="secondary">#1</Badge>
           )}
           {prompt.beamRank && prompt.beamRank > 1 && (
             <Badge variant="secondary">#{prompt.beamRank}</Badge>
@@ -87,13 +92,9 @@ export const PromptCard = memo(function PromptCard({
       {prompt.mae !== null && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
           <div>
-            <span className="text-muted-foreground">MAE:</span>{" "}
-            <span className="font-medium">{prompt.mae.toFixed(2)}</span>
-          </div>
-          <div>
-            <span className="text-muted-foreground">RMSE:</span>{" "}
+            <span className="text-muted-foreground">Kendall:</span>{" "}
             <span className="font-medium">
-              {prompt.rmse?.toFixed(2) || "N/A"}
+              {prompt.kendallTau?.toFixed(3) || "N/A"}
             </span>
           </div>
           <div>
@@ -103,9 +104,13 @@ export const PromptCard = memo(function PromptCard({
             </span>
           </div>
           <div>
-            <span className="text-muted-foreground">Kendall:</span>{" "}
+            <span className="text-muted-foreground">MAE:</span>{" "}
+            <span className="font-medium">{prompt.mae.toFixed(2)}</span>
+          </div>
+          <div>
+            <span className="text-muted-foreground">RMSE:</span>{" "}
             <span className="font-medium">
-              {prompt.kendallTau?.toFixed(3) || "N/A"}
+              {prompt.rmse?.toFixed(2) || "N/A"}
             </span>
           </div>
         </div>

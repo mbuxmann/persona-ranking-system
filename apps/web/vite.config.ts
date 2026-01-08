@@ -5,15 +5,15 @@ import { defineConfig } from "vite";
 import tsconfigPaths from "vite-tsconfig-paths";
 import { nitro } from "nitro/vite";
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [
     tsconfigPaths(),
     tailwindcss(),
     tanstackStart(),
-    nitro({ preset: "vercel" }),
+    mode === "production" ? nitro({ preset: "vercel" }) : null,
     viteReact(),
   ],
   server: {
     port: 3001,
   },
-});
+}));

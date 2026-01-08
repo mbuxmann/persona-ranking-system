@@ -152,15 +152,9 @@ export function PromptsPage() {
                 {activePrompt && activePrompt.mae !== null && (
                   <div className="mb-4 flex flex-wrap gap-4 text-sm">
                     <div className="flex items-center gap-1">
-                      <MetricLabel metric="mae" />
+                      <MetricLabel metric="kendall" />
                       <span className="font-semibold">
-                        {activePrompt.mae?.toFixed(2) || "N/A"}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <MetricLabel metric="rmse" />
-                      <span className="font-semibold">
-                        {activePrompt.rmse?.toFixed(2) || "N/A"}
+                        {activePrompt.kendallTau?.toFixed(3) || "N/A"}
                       </span>
                     </div>
                     <div className="flex items-center gap-1">
@@ -170,9 +164,15 @@ export function PromptsPage() {
                       </span>
                     </div>
                     <div className="flex items-center gap-1">
-                      <MetricLabel metric="kendall" />
+                      <MetricLabel metric="mae" />
                       <span className="font-semibold">
-                        {activePrompt.kendallTau?.toFixed(3) || "N/A"}
+                        {activePrompt.mae?.toFixed(2) || "N/A"}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <MetricLabel metric="rmse" />
+                      <span className="font-semibold">
+                        {activePrompt.rmse?.toFixed(2) || "N/A"}
                       </span>
                     </div>
                   </div>

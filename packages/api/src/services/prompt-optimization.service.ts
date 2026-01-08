@@ -434,7 +434,7 @@ export class PromptOptimizationService {
     }
     return {
       run,
-      beam: initialBeam,
+      beam: [],  // Start empty - only new variants go here, baseline tracked separately
       allCandidates: [],
       baselineMetrics,
       baselineCandidate,
@@ -532,14 +532,25 @@ export class PromptOptimizationService {
     };
   }
 
-  /** Returns best candidate from beam, or baseline if beam is unexpectedly empty */
+  /** Returns the best candidate between beam[0] and baseline for gradient generation */
   private validateBeamState(beam: InMemoryCandidate[], context: string, state: OptimizationState): InMemoryCandidate {
-    const currentBest = beam[0];
-    if (!currentBest) {
-      logger.error("Prompt Optimization Service", `Beam unexpectedly empty at: ${context}, recovering with baseline`);
+    const beamBest = beam[0];
+    if (!beamBest) {
+      // Beam empty (first iteration) - use baseline
       return state.baselineCandidate;
     }
-    return currentBest;
+
+    // Compare beam's best with baseline - return whichever is better
+    // Sort order: Kendall (higher) > Spearman (higher) > MAE (lower)
+    const baselineBetter =
+      (state.baselineCandidate.kendallTau > beamBest.kendallTau) ||
+      (state.baselineCandidate.kendallTau === beamBest.kendallTau &&
+       state.baselineCandidate.spearmanCorrelation > beamBest.spearmanCorrelation) ||
+      (state.baselineCandidate.kendallTau === beamBest.kendallTau &&
+       state.baselineCandidate.spearmanCorrelation === beamBest.spearmanCorrelation &&
+       state.baselineCandidate.mae < beamBest.mae);
+
+    return baselineBetter ? state.baselineCandidate : beamBest;
   }
 
   /** Generates natural language gradient from current best's errors */
@@ -677,23 +688,10 @@ export class PromptOptimizationService {
   ): Promise<BeamCandidate[]> {
     const persistedBeam: BeamCandidate[] = [];
 
+    // All candidates in beam are new variants (baseline tracked separately)
     for (let rank = 0; rank < beam.length; rank++) {
       const candidate = beam[rank]!;
 
-      // Skip baseline - it already exists in database
-      if (candidate.id) {
-        persistedBeam.push({
-          id: candidate.id,
-          promptText: candidate.promptText,
-          mae: candidate.mae,
-          rmse: candidate.rmse,
-          spearmanCorrelation: candidate.spearmanCorrelation,
-          kendallTau: candidate.kendallTau,
-        });
-        continue;
-      }
-
-      // Persist new candidate
       const persisted = await this.persistNewPromptVersion({
         promptText: candidate.promptText,
         parentVersionId: candidate.parentVersionId,
