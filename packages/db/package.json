@@ -1,0 +1,35 @@
+{
+  "name": "@leads/db",
+  "type": "module",
+  "exports": {
+    ".": {
+      "default": "./src/index.ts"
+    },
+    "./*": {
+      "default": "./src/*.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "db:push": "drizzle-kit push",
+    "db:generate": "drizzle-kit generate",
+    "db:studio": "drizzle-kit studio",
+    "db:migrate": "drizzle-kit migrate",
+    "seed": "bun run src/scripts/seed.ts"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.31.8",
+    "@types/pg": "^8.15.6",
+    "typescript": "catalog:",
+    "@leads/config": "workspace:*"
+  },
+  "dependencies": {
+    "@leads/env": "workspace:*",
+    "csv-parser": "^3.0.0",
+    "csv-stringify": "^6.6.0",
+    "dotenv": "catalog:",
+    "drizzle-orm": "^0.45.1",
+    "pg": "^8.16.3",
+    "zod": "catalog:"
+  }
+}

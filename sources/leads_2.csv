@@ -1,0 +1,52 @@
+lead_first_name,lead_last_name,lead_job_title,account_name,account_domain,account_employee_range,account_industry
+Sarah,Chen,VP of Sales,Stripe,stripe.com,5001-10000,Financial Services
+Michael,Rodriguez,Head of Revenue Operations,Stripe,stripe.com,5001-10000,Financial Services
+Emily,Watson,Senior HR Manager,Stripe,stripe.com,5001-10000,Financial Services
+James,Kumar,Finance Director,Stripe,stripe.com,5001-10000,Financial Services
+Lisa,Thompson,Director of Business Development,Stripe,stripe.com,5001-10000,Financial Services
+David,Park,Sales Operations Coordinator,Stripe,stripe.com,5001-10000,Financial Services
+Rachel,Martinez,VP of Marketing,Notion,notion.so,1001-5000,Productivity Software
+Kevin,Anderson,Head of Growth,Notion,notion.so,1001-5000,Productivity Software
+Amanda,Lee,IT Manager,Notion,notion.so,1001-5000,Productivity Software
+Chris,Johnson,Recruiting Manager,Notion,notion.so,1001-5000,Productivity Software
+Sophie,Williams,Director of Partnerships,Notion,notion.so,1001-5000,Productivity Software
+Marcus,Taylor,VP of Sales,Canva,canva.com,1001-5000,Design Tools
+Jessica,Brown,Head of Sales Development,Canva,canva.com,1001-5000,Design Tools
+Ryan,Miller,Operations Manager,Canva,canva.com,1001-5000,Design Tools
+Nicole,Davis,Chief Financial Officer,Canva,canva.com,1001-5000,Design Tools
+Brandon,Wilson,Director of Marketing,Canva,canva.com,1001-5000,Design Tools
+Alex,Garcia,VP of Revenue,Airtable,airtable.com,501-1000,Productivity Software
+Samantha,Moore,Head of Business Development,Airtable,airtable.com,501-1000,Productivity Software
+Tyler,White,HR Business Partner,Airtable,airtable.com,501-1000,Productivity Software
+Lauren,Jackson,Finance Analyst,Airtable,airtable.com,501-1000,Productivity Software
+Jordan,Thomas,Senior Sales Manager,Airtable,airtable.com,501-1000,Productivity Software
+Emma,Harris,VP of Sales,Webflow,webflow.com,201-500,Web Development
+Noah,Clark,Director of Growth Marketing,Webflow,webflow.com,201-500,Web Development
+Olivia,Lewis,People Operations Manager,Webflow,webflow.com,201-500,Web Development
+Ethan,Robinson,IT Support Specialist,Webflow,webflow.com,201-500,Web Development
+Sophia,Walker,Head of Partnerships,Webflow,webflow.com,201-500,Web Development
+Mason,Hall,Founder & CEO,Framer,framer.com,201-500,Design Tools
+Isabella,Allen,VP of Sales,Framer,framer.com,201-500,Design Tools
+Liam,Young,Director of Revenue Operations,Framer,framer.com,201-500,Design Tools
+Ava,King,Accounting Manager,Framer,framer.com,201-500,Design Tools
+William,Wright,Marketing Coordinator,Framer,framer.com,201-500,Design Tools
+Charlotte,Lopez,Head of Sales,Linear,linear.app,51-200,Project Management
+Benjamin,Hill,Director of Marketing,Linear,linear.app,51-200,Project Management
+Mia,Scott,People Operations Lead,Linear,linear.app,51-200,Project Management
+Lucas,Green,Junior Sales Associate,Linear,linear.app,51-200,Project Management
+Amelia,Adams,VP of Business Development,Linear,linear.app,51-200,Project Management
+Oliver,Baker,Co-Founder & CEO,PostHog,posthog.com,51-200,Analytics
+Evelyn,Nelson,Head of Revenue,PostHog,posthog.com,51-200,Analytics
+Henry,Carter,Senior Software Engineer,PostHog,posthog.com,51-200,Analytics
+Harper,Mitchell,Finance Manager,PostHog,posthog.com,51-200,Analytics
+Sebastian,Perez,Director of Sales,PostHog,posthog.com,51-200,Analytics
+Abigail,Roberts,VP of Sales,Retool,retool.com,101-500,Developer Tools
+Matthew,Turner,Head of Growth,Retool,retool.com,101-500,Developer Tools
+Elizabeth,Phillips,HR Director,Retool,retool.com,101-500,Developer Tools
+Daniel,Campbell,Operations Analyst,Retool,retool.com,101-500,Developer Tools
+Sofia,Parker,Senior Sales Manager,Retool,retool.com,101-500,Developer Tools
+Jackson,Evans,VP of Marketing,Vercel,vercel.com,201-500,Developer Tools
+Aria,Edwards,Director of Partnerships,Vercel,vercel.com,201-500,Developer Tools
+Aiden,Collins,Chief Technology Officer,Vercel,vercel.com,201-500,Developer Tools
+Grace,Stewart,People & Culture Manager,Vercel,vercel.com,201-500,Developer Tools
+Carter,Morris,Head of Sales,Vercel,vercel.com,201-500,Developer Tools
