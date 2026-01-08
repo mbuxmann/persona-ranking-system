@@ -7,7 +7,7 @@ An AI-powered lead qualification and ranking system that identifies the best con
 - **Frontend**: TanStack Start (SSR), React 19, TanStack Router, TanStack Query, TanStack Table
 - **Backend**: ORPC (type-safe RPC), Service layer architecture
 - **Database**: PostgreSQL with Drizzle ORM
-- **AI**: OpenAI (GPT-4o-mini for qualification/ranking, GPT-4o for optimization)
+- **AI**: OpenAI (GPT-5-mini for qualification/ranking, GPT-5-mini for optimization)
 - **Background Jobs**: Trigger.dev (async task execution)
 - **State Management**: Jotai (client state), TanStack Query (server state)
 - **UI**: shadcn/ui components, TailwindCSS 4.x
