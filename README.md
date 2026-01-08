@@ -7,7 +7,7 @@ An AI-powered lead qualification and ranking system that identifies the best con
 - **Frontend**: TanStack Start (SSR), React 19, TanStack Router, TanStack Query, TanStack Table
 - **Backend**: ORPC (type-safe RPC), Service layer architecture
 - **Database**: PostgreSQL with Drizzle ORM
-- **AI**: OpenAI (GPT-5-mini for qualification/ranking, GPT-5-mini for optimization)
+- **AI**: OpenRouter (GPT-5-mini for all AI tasks)
 - **Background Jobs**: Trigger.dev (async task execution)
 - **State Management**: Jotai (client state), TanStack Query (server state)
 - **UI**: shadcn/ui components, TailwindCSS 4.x
@@ -17,7 +17,7 @@ An AI-powered lead qualification and ranking system that identifies the best con
 
 - **Bun** >= 1.3.3 ([install](https://bun.sh))
 - **PostgreSQL** database (local or hosted)
-- **OpenAI API key** with GPT-4o access
+- **OpenRouter API key**
 - **Trigger.dev account** (optional - can run synchronously in dev mode)
 
 ## Getting Started
@@ -54,7 +54,7 @@ NODE_ENV=development
 CORS_ORIGIN=http://localhost:3001
 
 # AI
-OPENAI_API_KEY=sk-proj-...
+OPENROUTER_API_KEY=sk-or-...
 
 # Background Jobs (Trigger.dev)
 TRIGGER_SECRET_KEY=tr_dev_...
@@ -185,7 +185,7 @@ Task Executor (Sync or Async decision)
     ↓
 AI Agent (Qualification/Ranking with retry logic)
     ↓
-OpenAI API (GPT-4o-mini)
+OpenRouter API (GPT-5-mini)
     ↓
 Database (Drizzle ORM → PostgreSQL)
     ↓
@@ -379,7 +379,7 @@ The Prompts page shows:
 
 - **Phase 1 - Qualification**: Binary decision (qualified/disqualified) with reasoning
   - Filters out irrelevant leads (HR for sales platform)
-  - Uses cheaper GPT-4o-mini model
+  - Uses GPT-5-mini model via OpenRouter
   - Validates against persona spec
 
 - **Phase 2 - Ranking**: Ranks only qualified leads within each company
@@ -427,7 +427,7 @@ Each agent handles:
 
 **Example**: `rankingAgent.rankQualifiedLeads()` automatically:
 1. Substitutes persona spec into prompt template
-2. Calls OpenAI with Zod schema enforcement
+2. Calls OpenRouter with Zod schema enforcement
 3. Validates each lead was ranked
 4. Retries for missing leads
 5. Returns validated results
@@ -617,7 +617,7 @@ const result = await executeRankingWorkflow({ leadIds });
 - **Performance**: React.memo for list components, polling with conditional intervals
 
 ### AI Integration
-- **Cost Awareness**: Use cheaper models (gpt-4o-mini) for qualification/ranking, gpt-4o only for optimization
+- **Model Configuration**: All AI tasks use GPT-5-mini via OpenRouter (configurable per task)
 - **Prompt Engineering**: Handlebars templates with persona spec substitution
 - **Validation**: Zod schemas enforce structured output from AI
 - **Retry Logic**: Automatic retry for incomplete responses with deduplication
