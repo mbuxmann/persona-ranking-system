@@ -935,10 +935,10 @@ export class PromptOptimizationService {
   async exportEvaluationResults(promptId: string): Promise<EvaluationExport> {
     logger.info("Prompt Optimization Service", "Exporting evaluation results", { promptId });
 
-    const [prompt] = await db
-      .select()
-      .from(promptVersions)
-      .where(eq(promptVersions.id, promptId));
+    const [[prompt], allRuns] = await Promise.all([
+      db.select().from(promptVersions).where(eq(promptVersions.id, promptId)),
+      db.select().from(optimizationRuns).orderBy(optimizationRuns.createdAt),
+    ]);
 
     if (!prompt) {
       throw new Error(`Prompt version ${promptId} not found`);
@@ -950,9 +950,12 @@ export class PromptOptimizationService {
       throw new Error("No evaluation results found for this prompt version");
     }
 
+    const runNumberMap = this.buildRunNumberMap(allRuns);
+    const version = this.computeVersionString(prompt.optimizationRunId, prompt.beamRank, runNumberMap);
+
     const records = this.buildEvaluationExportRecords(results);
     const csvString = this.generateEvaluationCsv(records);
-    const filename = this.generateExportFilename(prompt);
+    const filename = this.generateExportFilename(prompt, version);
 
     logger.info("Prompt Optimization Service", "Evaluation results exported", {
       promptId,
@@ -1019,8 +1022,8 @@ export class PromptOptimizationService {
   }
 
   /** Generates filename for evaluation export based on version */
-  private generateExportFilename(prompt: typeof promptVersions.$inferSelect): string {
-    const versionLabel = prompt.isBaseline ? "baseline" : `v${prompt.iterationNumber}.${prompt.beamRank || 1}`;
+  private generateExportFilename(prompt: typeof promptVersions.$inferSelect, version: string): string {
+    const versionLabel = prompt.isBaseline ? "baseline" : `v${version}`;
     return `evaluation-results-${versionLabel}-${new Date().toISOString().split("T")[0]}.csv`;
   }
 }

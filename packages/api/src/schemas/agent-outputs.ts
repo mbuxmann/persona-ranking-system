@@ -18,7 +18,7 @@ export const qualificationOutputArraySchema = z.array(qualificationOutputSchema)
  */
 export const rankingOutputSchema = z.object({
   leadId: z.string().uuid(),
-  rank: z.number().min(0).max(100),
+  rank: z.number().int().min(1),
   reasoning: z.string().transform(s => s.length > 3000 ? s.slice(0, 2997) + '...' : s),
 });
 
