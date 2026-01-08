@@ -128,7 +128,7 @@ leads/
 │       │   ├── routes/         # File-based routing (TanStack Router)
 │       │   ├── pages/          # Page components with feature folders
 │       │   │   ├── home/       # Home page: CSV upload, leads table
-│       │   │   └── prompt/     # Prompt optimization page
+│       │   │   └── prompt/     # Prompt optimisation page
 │       │   ├── components/     # Shared UI components (shadcn/ui)
 │       │   ├── hooks/          # Global custom hooks
 │       │   └── utils/          # ORPC client, utilities
@@ -139,7 +139,7 @@ leads/
 │   │   ├── src/
 │   │   │   ├── routers/        # ORPC API endpoints
 │   │   │   ├── services/       # Business logic (singleton pattern)
-│   │   │   ├── agents/         # AI agents (qualification, ranking, optimization)
+│   │   │   ├── agents/         # AI agents (qualification, ranking, optimisation)
 │   │   │   ├── schemas/        # Zod validation schemas
 │   │   │   ├── trigger/        # Trigger.dev background tasks
 │   │   │   ├── config/         # Constants and configuration
@@ -208,7 +208,7 @@ Response back through chain
 
 ## How It Works
 
-For detailed step-by-step explanations of CSV upload processing and automatic prompt optimization, see [GUIDE.md](./GUIDE.md).
+For detailed step-by-step explanations of CSV upload processing and automatic prompt optimisation, see [GUIDE.md](./GUIDE.md).
 
 ## Key Design Decisions
 
@@ -232,7 +232,7 @@ For detailed step-by-step explanations of CSV upload processing and automatic pr
 - Harder to debug when rankings seem off
 
 
-### 2. Prompt Optimization with Beam Search
+### 2. Prompt Optimisation with Beam Search
 
 **Rationale**: Automated prompt improvement using evaluation set + AI feedback.
 
@@ -247,7 +247,7 @@ Implemented the hard bonus challenge:
 - More efficient than exhaustive search
 - Explores multiple promising directions
 - Balances exploitation vs exploration
-- Proven effective for prompt optimization
+- Proven effective for prompt optimisation
 
 ### 3. Background Job Abstraction
 
@@ -272,12 +272,12 @@ const result = await executeRankingWorkflow({ leadIds });
 
 ### 4. OpenRouter for Model Flexibility
 
-**Rationale**: Use OpenRouter as LLM gateway for resilience and cost optimization.
+**Rationale**: Use OpenRouter as LLM gateway for resilience and cost optimisation.
 
 - **Model switching**: Change models via environment variables without code changes
 - **Higher TPS**: OpenRouter aggregates rate limits across multiple providers
 - **Provider fallback**: If one provider is down, switch to another instantly
-- **Cost optimization**: Use cheaper models for simple tasks (qualification), premium for complex (ranking)
+- **Cost optimisation**: Use cheaper models for simple tasks (qualification), premium for complex (ranking)
 
 ```bash
 # Per-task model configuration
@@ -315,7 +315,7 @@ OPENROUTER_VARIANT_MODEL=openai/gpt-5-mini
 
 ### 1. Monolithic Jobs vs Micro-Jobs
 
-**Decision**: Single job per workflow (import, ranking, optimization) with internal batching rather than splitting into many small jobs.
+**Decision**: Single job per workflow (import, ranking, optimisation) with internal batching rather than splitting into many small jobs.
 
 **Why**: Splitting into micro-jobs would require:
 - Distributed state management for partial progress
@@ -325,7 +325,7 @@ OPENROUTER_VARIANT_MODEL=openai/gpt-5-mini
 
 **Tradeoff**: This approach prioritizes implementation simplicity and deterministic execution over fine-grained failure recovery and horizontal scalability.
 
-**Proper solution**: Use a workflow orchestrator (e.g., Temporal, Inngest) with durable step execution and checkpointing, allowing workflows to resume from the last successful step and scale via parallel execution.
+**Scalable solution**: Use a workflow orchestrator (e.g., Temporal, Inngest) with durable step execution and checkpointing, allowing workflows to resume from the last successful step and scale via parallel execution.
 
 ---
 
@@ -344,7 +344,7 @@ OPENROUTER_VARIANT_MODEL=openai/gpt-5-mini
 - Can't re-process or audit original uploaded files
 - No file versioning or rollback capability
 
-**Proper solution**: Upload to S3 with presigned URLs, store file reference in database, process from S3. Enables large files, audit trail, and reprocessing.
+**Scalable solution**: Upload to S3 with presigned URLs, store file reference in database, process from S3. Enables large files, audit trail, and reprocessing.
 
 ---
 
@@ -356,7 +356,7 @@ OPENROUTER_VARIANT_MODEL=openai/gpt-5-mini
 
 **Tradeoff**: Import throughput is limited to ~100 rows/second. Large files (10k+ rows) take minutes.
 
-**Proper solution**: Pre-process CSV to group by company domain, then upsert companies in a single batch before parallel lead imports. Or use database advisory locks per company domain.
+**Scalable solution**: Pre-process CSV to group by company domain, then upsert companies in a single batch before parallel lead imports. Or use database advisory locks per company domain.
 
 ---
 
@@ -368,7 +368,7 @@ OPENROUTER_VARIANT_MODEL=openai/gpt-5-mini
 
 **Tradeoff**: Loses granular feedback ("47 inserted, 3 duplicates skipped"). The app only knows total attempted vs total inserted.
 
-**Proper solution**: Query existing records first, or use `ON CONFLICT DO UPDATE` with a returning clause to track which rows were actually inserted vs updated.
+**Scalable solution**: Query existing records first, or use `ON CONFLICT DO UPDATE` with a returning clause to track which rows were actually inserted vs updated.
 
 ---
 
@@ -383,19 +383,19 @@ OPENROUTER_VARIANT_MODEL=openai/gpt-5-mini
 - Validation errors (shouldn't retry at all)
 - Transient network errors (retry immediately)
 
-**Proper solution**: Error classification with retry policies per error type. Rate limits trigger longer backoff; validation errors fail immediately; network errors retry with jitter.
+**Scalable solution**: Error classification with retry policies per error type. Rate limits trigger longer backoff; validation errors fail immediately; network errors retry with jitter.
 
 ---
 
-### 6. In-Memory Optimization State (No Checkpointing)
+### 6. In-Memory Optimisation State (No Checkpointing)
 
-**Decision**: Beam search optimization keeps all candidates in memory. Only persists to database when optimization completes.
+**Decision**: Beam search optimisation keeps all candidates in memory. Only persists to database when optimisation completes.
 
-**Why**: Faster iteration without database reads/writes between generations. Optimization typically runs 3-5 iterations taking 5-10 minutes total.
+**Why**: Faster iteration without database reads/writes between generations. Optimisation typically runs 3-5 iterations taking 5-10 minutes total.
 
-**Tradeoff**: If the process crashes mid-optimization, all progress is lost. Must restart from beginning.
+**Tradeoff**: If the process crashes mid-optimisation, all progress is lost. Must restart from beginning.
 
-**Proper solution**: Checkpoint after each iteration - persist beam state to database. On restart, detect incomplete run and resume from last checkpoint.
+**Scalable solution**: Checkpoint after each iteration - persist beam state to database. On restart, detect incomplete run and resume from last checkpoint.
 
 ---
 
@@ -410,7 +410,7 @@ OPENROUTER_VARIANT_MODEL=openai/gpt-5-mini
 - Risk of timeout on very large files (10k+ rows)
 - Blocks other writes to affected tables
 
-**Proper solution**: Batch transactions (100-500 rows each) with an "import batch" tracking table. On failure, mark batch as failed and allow retry of just that batch. Accept that imports may be partially complete.
+**Scalable solution**: Batch transactions (100-500 rows each) with an "import batch" tracking table. On failure, mark batch as failed and allow retry of just that batch. Accept that imports may be partially complete.
 
 ---
 
@@ -420,7 +420,7 @@ OPENROUTER_VARIANT_MODEL=openai/gpt-5-mini
 
 **Why**: Out of scope for technical challenge. Focus on core AI ranking functionality. Better-Auth is installed but not integrated.
 
-**Proper solution**: Activate Better-Auth, add protected routes, associate data with users.
+**Scalable solution**: Activate Better-Auth, add protected routes, associate data with users.
 
 ## Available Scripts
 
@@ -457,7 +457,7 @@ OPENROUTER_VARIANT_MODEL=openai/gpt-5-mini
 - ✅ **🟢 Export CSV**: Export top N leads per company
 - ✅ **🟢 Sortable Table**: Click column headers to sort
 - ✅ **🟡 CSV Upload UI**: Drag-and-drop CSV upload from frontend
-- ✅ **🔴 Prompt Optimization**: Automatic prompt optimization using evaluation set
+- ✅ **🔴 Prompt Optimisation**: Automatic prompt optimisation using evaluation set
   - Beam search algorithm
   - Gradient generation (error analysis)
   - Variant generation (improved prompts)
