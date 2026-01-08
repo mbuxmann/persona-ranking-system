@@ -95,7 +95,11 @@ interface MetaPromptVariables {
 const REQUIRED_PROMPT_PLACEHOLDERS = [
   "{{PERSONA_SPEC}}",
   "{{QUALIFIED_LEADS_LIST}}",
+  "{{QUALIFIED_LEADS_COUNT}}",
   "{{COMPANY_NAME}}",
+  "{{COMPANY_DOMAIN}}",
+  "{{EMPLOYEE_RANGE}}",
+  "{{INDUSTRY}}",
 ] as const;
 
 const PROMPT_PREVIEW_LENGTH = 300;

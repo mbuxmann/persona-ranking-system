@@ -9,6 +9,7 @@ export const optimizePromptTask = task({
     maxAttempts: 1,
   },
   maxDuration: 3600,
+  machine: "medium-1x",
   queue: {
     concurrencyLimit: 1,
   },

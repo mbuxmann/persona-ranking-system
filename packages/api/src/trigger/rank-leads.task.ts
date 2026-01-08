@@ -8,6 +8,7 @@ export const rankLeadsTask = task({
   retry: {
     maxAttempts: 3,
   },
+  machine: "small-2x",
   queue: {
     concurrencyLimit: 3,
   },
