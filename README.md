@@ -232,7 +232,7 @@ For detailed step-by-step explanations of CSV upload processing and automatic pr
 - Harder to debug when rankings seem off
 
 
-### 5. Prompt Optimization with Beam Search
+### 2. Prompt Optimization with Beam Search
 
 **Rationale**: Automated prompt improvement using evaluation set + AI feedback.
 
@@ -249,7 +249,7 @@ Implemented the hard bonus challenge:
 - Balances exploitation vs exploration
 - Proven effective for prompt optimization
 
-### 6. Background Job Abstraction
+### 3. Background Job Abstraction
 
 **Rationale**: Dev/prod parity with sync/async execution flexibility.
 
@@ -270,78 +270,157 @@ const result = await executeRankingWorkflow({ leadIds });
 - No code changes between environments
 - Easy to test business logic without async complexity
 
+### 4. OpenRouter for Model Flexibility
+
+**Rationale**: Use OpenRouter as LLM gateway for resilience and cost optimization.
+
+- **Model switching**: Change models via environment variables without code changes
+- **Higher TPS**: OpenRouter aggregates rate limits across multiple providers
+- **Provider fallback**: If one provider is down, switch to another instantly
+- **Cost optimization**: Use cheaper models for simple tasks (qualification), premium for complex (ranking)
+
+```bash
+# Per-task model configuration
+OPENROUTER_QUALIFICATION_MODEL=openai/gpt-5-mini
+OPENROUTER_RANKING_MODEL=openai/gpt-5-mini
+OPENROUTER_GRADIENT_MODEL=openai/gpt-5-mini
+OPENROUTER_VARIANT_MODEL=openai/gpt-5-mini
+```
+
+**Alternative rejected**: Direct OpenAI API. Single provider = single point of failure, no rate limit aggregation.
+
+### 5. Per-Company Ranking (Not Global)
+
+**Rationale**: Leads ranked within their company, never compared across companies.
+
+- A VP of Sales at a 50-person startup might be Rank 1 there
+- That same title at a 5,000-person enterprise might be Rank 2 (behind VP of Sales Development)
+- Company context (size, industry) fundamentally changes who the ideal buyer is
+
+**Implementation**: Leads grouped by `companyId`, each group sent to AI separately with company-specific context (domain, employee range, industry). Cross-company comparison is meaningless for sales prioritization.
+
+### 6. Safe Defaults on AI Failure
+
+**Rationale**: Conservative fallback behavior prioritizes precision over recall.
+
+| Failure Type | Fallback | Reasoning |
+|--------------|----------|-----------|
+| Qualification error | `qualified: false` | Don't contact unvetted leads |
+| Ranking error | Empty array | Don't override existing rankings |
+| Incomplete response | Retry missing leads | AI sometimes drops items from batch |
+
+**Why conservative**: It's safer to miss a good lead than to contact an irrelevant one. Sales teams prefer fewer high-quality leads over more uncertain ones.
+
 ## Technical Tradeoffs
 
-### 1. Duplicate .env Files
+### 1. Monolithic Jobs vs Micro-Jobs
 
-**Decision**: Keep 3 identical .env files instead of single root file.
+**Decision**: Single job per workflow (import, ranking, optimization) with internal batching rather than splitting into many small jobs.
 
-**Why**:
-- ESM modules lack `__dirname` (can't resolve relative paths reliably)
-- Different processes run from different working directories
-- `import "dotenv/config"` loads from CWD (varies by context)
-- Simple symlinks fail on Windows without admin privileges
+**Why**: Splitting into micro-jobs would require:
+- Distributed state management for partial progress
+- Job orchestration and dependency tracking
+- Complex race condition handling on shared data
+- Partial failure recovery logic
 
-**Tradeoff**: Slight duplication vs guaranteed reliability across all contexts (Vite SSR, Trigger.dev tasks, Drizzle migrations).
+**Tradeoff**: This approach prioritizes implementation simplicity and deterministic execution over fine-grained failure recovery and horizontal scalability.
 
-### 2. Large Service Files
+**Proper solution**: Use a workflow orchestrator (e.g., Temporal, Inngest) with durable step execution and checkpointing, allowing workflows to resume from the last successful step and scale via parallel execution.
 
-**Decision**: Accept files >400 lines for cohesive business logic.
+---
 
-**Why**:
-- Ranking logic is complex (qualification + ranking + batching + error handling)
-- Splitting would scatter related logic across multiple files
-- Cohesion matters more than arbitrary line limits
-- Each service owns a single domain concern
+### 2. In-Memory CSV Processing (No Cloud Storage)
 
-**Future**: Could extract sub-services if services grow beyond ~800 lines.
+**Decision**: CSV files are parsed directly from upload into memory, then written to database. No S3/cloud storage.
 
-### 3. Single Migration File
+**Why**: Avoids infrastructure complexity:
+- No S3 bucket setup or IAM policies
+- No signed URL generation for uploads
+- No cleanup jobs for orphaned files
+- Simpler local development
 
-**Decision**: One monolithic migration instead of incremental files.
+**Tradeoff**:
+- Can't handle files larger than server memory
+- Can't re-process or audit original uploaded files
+- No file versioning or rollback capability
 
-**Why**:
-- New project (no production database to migrate)
-- Changes are frequent during development
-- `drizzle-kit push` is faster for prototyping
-- Can generate proper migrations before production deploy
+**Proper solution**: Upload to S3 with presigned URLs, store file reference in database, process from S3. Enables large files, audit trail, and reprocessing.
 
-**Future**: Generate incremental migrations before first production deploy.
+---
 
-### 4. No Authentication
+### 3. Sequential Imports, Parallel Ranking
+
+**Decision**: Import jobs run with concurrency=1 (sequential). Ranking runs with concurrency=20 companies in parallel.
+
+**Why**: The same company domain might appear in multiple CSV rows. Parallel imports would race on company upserts, potentially creating duplicates or conflicts. Ranking is safe to parallelize because each company is independent.
+
+**Tradeoff**: Import throughput is limited to ~100 rows/second. Large files (10k+ rows) take minutes.
+
+**Proper solution**: Pre-process CSV to group by company domain, then upsert companies in a single batch before parallel lead imports. Or use database advisory locks per company domain.
+
+---
+
+### 4. Database Deduplication Only
+
+**Decision**: Duplicate detection uses PostgreSQL `ON CONFLICT DO NOTHING` on composite unique keys rather than application-level tracking.
+
+**Why**: Atomic deduplication at database level. No need to query existing records before insert.
+
+**Tradeoff**: Loses granular feedback ("47 inserted, 3 duplicates skipped"). The app only knows total attempted vs total inserted.
+
+**Proper solution**: Query existing records first, or use `ON CONFLICT DO UPDATE` with a returning clause to track which rows were actually inserted vs updated.
+
+---
+
+### 5. Fixed Retry Strategy (3 Attempts)
+
+**Decision**: All background jobs retry exactly 3 times with default exponential backoff.
+
+**Why**: Simple, consistent behavior across all job types.
+
+**Tradeoff**: Doesn't distinguish error types:
+- Rate limit errors (should backoff longer)
+- Validation errors (shouldn't retry at all)
+- Transient network errors (retry immediately)
+
+**Proper solution**: Error classification with retry policies per error type. Rate limits trigger longer backoff; validation errors fail immediately; network errors retry with jitter.
+
+---
+
+### 6. In-Memory Optimization State (No Checkpointing)
+
+**Decision**: Beam search optimization keeps all candidates in memory. Only persists to database when optimization completes.
+
+**Why**: Faster iteration without database reads/writes between generations. Optimization typically runs 3-5 iterations taking 5-10 minutes total.
+
+**Tradeoff**: If the process crashes mid-optimization, all progress is lost. Must restart from beginning.
+
+**Proper solution**: Checkpoint after each iteration - persist beam state to database. On restart, detect incomplete run and resume from last checkpoint.
+
+---
+
+### 7. Long-Lived Database Transactions
+
+**Decision**: Entire CSV import runs within a single database transaction for atomicity.
+
+**Why**: All-or-nothing imports. If row 500 fails, rows 1-499 are rolled back. No partial imports cluttering the database.
+
+**Tradeoff**:
+- Transaction holds connections for duration of import
+- Risk of timeout on very large files (10k+ rows)
+- Blocks other writes to affected tables
+
+**Proper solution**: Batch transactions (100-500 rows each) with an "import batch" tracking table. On failure, mark batch as failed and allow retry of just that batch. Accept that imports may be partially complete.
+
+---
+
+### 8. No Authentication
 
 **Decision**: Skip user authentication entirely.
 
-**Why**:
-- Out of scope for technical challenge
-- Focus on core AI ranking functionality
-- Better-Auth is installed but not integrated
-- Schema includes user tables (preparation for future)
+**Why**: Out of scope for technical challenge. Focus on core AI ranking functionality. Better-Auth is installed but not integrated.
 
-**Future**: Activate Better-Auth, add protected routes, associate data with users.
-
-### 5. Hardcoded Configuration
-
-**Decision**: Constants in `config/constants.ts` instead of admin UI.
-
-**Why**:
-- Faster to iterate (no UI to build)
-- Type-safe config values
-- Version controlled (visible in Git history)
-- Suitable for technical/admin users
-
-**Tradeoff**: Requires code changes to adjust concurrency, batch sizes, retry limits. Could add admin panel later for non-technical users.
-
-### 6. Limited Error Handling in UI
-
-**Decision**: Toast notifications for errors, no retry UI.
-
-**Why**:
-- Sufficient for MVP/demo (clear feedback to user)
-- TanStack Query handles retries automatically
-- Complex error recovery UI is time-intensive
-
-**Future**: Add manual retry buttons, error state components, detailed error messages.
+**Proper solution**: Activate Better-Auth, add protected routes, associate data with users.
 
 ## Available Scripts
 
@@ -378,10 +457,6 @@ const result = await executeRankingWorkflow({ leadIds });
 - ✅ **🟢 Export CSV**: Export top N leads per company
 - ✅ **🟢 Sortable Table**: Click column headers to sort
 - ✅ **🟡 CSV Upload UI**: Drag-and-drop CSV upload from frontend
-- ✅ **🟡 Real-time Progress**: Live status polling during ranking and optimization
-  - Job polling hooks with conditional intervals
-  - Progress status banners with real-time updates
-  - Table auto-refresh when workflows complete
 - ✅ **🔴 Prompt Optimization**: Automatic prompt optimization using evaluation set
   - Beam search algorithm
   - Gradient generation (error analysis)
@@ -408,19 +483,6 @@ const result = await executeRankingWorkflow({ leadIds });
 - **Type-Safe APIs**: ORPC eliminates API client maintenance
 - **Hot Module Reload**: Fast feedback loop with Vite
 - **Database GUI**: Drizzle Studio for visual data exploration
-
-## Future Enhancements
-
-If more time were available:
-
-1. **Authentication**: Activate Better-Auth, protect routes, per-user data
-2. **Webhook Integration**: Real-time notifications from Trigger.dev
-3. **Prompt Library**: Save/load/share optimized prompts
-4. **Batch Operations**: Bulk qualification/ranking of multiple uploads
-5. **Cost Tracking**: Dashboard showing AI cost per call, total spend (bonus challenge not implemented)
-7. **Admin Panel**: UI for config values (concurrency, batch sizes)
-8. **Testing**: Unit tests for services, integration tests for workflows
-10. **Error Recovery**: Manual retry buttons, detailed error state UI
 
 ## License
 
