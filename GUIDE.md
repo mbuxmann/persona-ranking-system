@@ -104,6 +104,28 @@ Run each variant prompt on the 50 evaluation leads and calculate their error met
 **7. Keep the best performers**
 Pick the **top 2 variants** with lowest error (best rankings).
 
+### How We Determine "Best"
+
+We track 4 metrics for each prompt variant:
+
+| Metric | What it measures | Better = |
+|--------|------------------|----------|
+| **Kendall's Tau** | Rank order agreement (pairwise comparisons) | Higher |
+| **Spearman correlation** | Rank correlation strength | Higher |
+| **MAE** | Mean Absolute Error (average rank difference) | Lower |
+| **RMSE** | Root Mean Square Error (penalises large errors) | Lower |
+
+**Comparison priority (for selecting best prompts):**
+
+1. **Kendall's Tau** - Primary metric. Measures how many pairs of leads are ranked in the correct relative order.
+2. **Spearman correlation** - Tiebreaker #1. Another measure of rank agreement.
+3. **MAE** - Tiebreaker #2. Average distance between predicted and actual rank.
+
+RMSE is tracked for monitoring but not used in comparison—it's redundant with MAE for ranking purposes.
+
+**Why Kendall's Tau first?**
+For lead prioritisation, getting the *order* right matters more than the exact rank number. Kendall's Tau directly measures: "Did we rank Person A above Person B correctly?"
+
 **8. Repeat (next generation)**
 Use those top 2 as starting points:
 - Generate 5 new variants from Variant A
