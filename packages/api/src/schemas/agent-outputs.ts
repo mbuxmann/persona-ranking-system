@@ -7,7 +7,7 @@ import { z } from "zod";
 export const qualificationOutputSchema = z.object({
   leadId: z.string().uuid(),
   qualified: z.boolean(),
-  reasoning: z.string().max(2000),
+  reasoning: z.string().transform(s => s.length > 3000 ? s.slice(0, 2997) + '...' : s),
 });
 
 export const qualificationOutputArraySchema = z.array(qualificationOutputSchema);
@@ -19,7 +19,7 @@ export const qualificationOutputArraySchema = z.array(qualificationOutputSchema)
 export const rankingOutputSchema = z.object({
   leadId: z.string().uuid(),
   rank: z.number().min(0).max(100),
-  reasoning: z.string().max(2000),
+  reasoning: z.string().transform(s => s.length > 3000 ? s.slice(0, 2997) + '...' : s),
 });
 
 export const rankingOutputArraySchema = z.array(rankingOutputSchema);

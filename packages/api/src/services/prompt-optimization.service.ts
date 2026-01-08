@@ -62,19 +62,18 @@ interface PersistNewPromptVersionParams {
 
 // Beam search optimization types
 interface InMemoryCandidate extends EvaluationMetrics {
+  id?: string;  // Only set for existing prompts (baseline)
   promptText: string;
   parentVersionId: string;
   rankings: { leadId: string; rank: number; reasoning: string }[];
 }
 
-type CombinedCandidate = (BeamCandidate & { isNew: false }) | (InMemoryCandidate & { isNew: true });
-
 interface OptimizationState {
   run: typeof optimizationRuns.$inferSelect;
-  beam: BeamCandidate[];
-  allCandidates: BeamCandidate[];
+  beam: InMemoryCandidate[];
+  allCandidates: InMemoryCandidate[];
   baselineMetrics: EvaluationMetrics;
-  baselineCandidate: BeamCandidate;
+  baselineCandidate: InMemoryCandidate;
 }
 
 interface RunBeamSearchParams {
@@ -83,8 +82,8 @@ interface RunBeamSearchParams {
 }
 
 interface CheckConvergenceParams {
-  newBest: BeamCandidate;
-  previousBest: BeamCandidate;
+  newBest: InMemoryCandidate;
+  previousBest: InMemoryCandidate;
   iteration: number;
 }
 
@@ -119,24 +118,16 @@ interface UpdateBeamParams {
 }
 
 interface PrepareGradientParams {
-  currentBest: BeamCandidate;
+  currentBest: InMemoryCandidate;
   iteration: number;
 }
 
 interface GenerateAndEvaluateParams {
-  currentBest: BeamCandidate;
+  currentBest: InMemoryCandidate;
   gradient: string;
   state: OptimizationState;
   config: OptimizationConfig;
   iteration: number;
-}
-
-interface ProcessBeamCandidateParams {
-  candidate: CombinedCandidate;
-  rank: number;
-  runId: string;
-  iteration: number;
-  state: OptimizationState;
 }
 
 /**
@@ -214,7 +205,7 @@ export class PromptOptimizationService {
   /** Loads baseline metrics or evaluates if not yet computed */
   async loadOrEvaluateBaseline(startingPromptId: string): Promise<{
     baselineMetrics: EvaluationMetrics;
-    initialBeam: BeamCandidate[];
+    initialBeam: InMemoryCandidate[];
   }> {
     const [startingPrompt] = await db.select().from(promptVersions).where(eq(promptVersions.id, startingPromptId));
 
@@ -256,6 +247,8 @@ export class PromptOptimizationService {
       initialBeam: [{
         id: startingPrompt.id,
         promptText: startingPrompt.promptText,
+        parentVersionId: startingPrompt.id, // Baseline is its own parent
+        rankings: [], // Baseline doesn't need rankings for persistence
         mae: baselineMetrics.mae,
         rmse: baselineMetrics.rmse,
         spearmanCorrelation: baselineMetrics.spearmanCorrelation,
@@ -287,6 +280,39 @@ export class PromptOptimizationService {
       reasoning: r.reasoning,
       leadInfo: `${r.firstName} ${r.lastName} - ${r.jobTitle} at ${r.companyName}`,
     }));
+  }
+
+  /** Computes sample errors from in-memory rankings (for candidates not yet persisted) */
+  async getSampleErrorsFromRankings(
+    rankings: { leadId: string; rank: number; reasoning: string }[],
+    limit: number
+  ): Promise<SampleError[]> {
+    if (rankings.length === 0) return [];
+
+    const leadIds = rankings.map(r => r.leadId);
+    const leads = await db.select()
+      .from(evaluationLeads)
+      .where(sql`${evaluationLeads.id} IN ${leadIds}`);
+
+    const leadMap = new Map(leads.map(l => [l.id, l]));
+
+    const errors = rankings
+      .map(r => {
+        const lead = leadMap.get(r.leadId);
+        if (!lead) return null;
+        return {
+          predicted: r.rank,
+          groundTruth: lead.groundTruthRank,
+          reasoning: r.reasoning,
+          leadInfo: `${lead.firstName} ${lead.lastName} - ${lead.jobTitle} at ${lead.companyName}`,
+          error: Math.abs(r.rank - lead.groundTruthRank),
+        };
+      })
+      .filter((e): e is NonNullable<typeof e> => e !== null)
+      .sort((a, b) => b.error - a.error)
+      .slice(0, limit);
+
+    return errors.map(({ error, ...rest }) => rest);
   }
 
   /** Persists a new prompt version with evaluation results */
@@ -467,12 +493,19 @@ export class PromptOptimizationService {
   /** Completes optimization run and calculates improvement percentage */
   private async finalizeOptimization(params: FinalizeOptimizationParams) {
     const { state, convergedEarly, finalIteration } = params;
-    const bestPrompt = state.beam[0];
-    if (!bestPrompt) {
+    const bestInMemory = state.beam[0];
+    if (!bestInMemory) {
       throw new Error("No best prompt found - beam is empty");
     }
 
     const actualIterations = convergedEarly ? finalIteration + 1 : finalIteration;
+
+    // Persist final beam candidates to database
+    const persistedBeam = await this.persistFinalBeam(state.beam, state.run.id, actualIterations);
+    const bestPrompt = persistedBeam[0];
+    if (!bestPrompt) {
+      throw new Error("Failed to persist final beam");
+    }
 
     await this.completeOptimizationRun({
       runId: state.run.id,
@@ -500,7 +533,7 @@ export class PromptOptimizationService {
   }
 
   /** Returns best candidate from beam, or baseline if beam is unexpectedly empty */
-  private validateBeamState(beam: BeamCandidate[], context: string, state: OptimizationState): BeamCandidate {
+  private validateBeamState(beam: InMemoryCandidate[], context: string, state: OptimizationState): InMemoryCandidate {
     const currentBest = beam[0];
     if (!currentBest) {
       logger.error("Prompt Optimization Service", `Beam unexpectedly empty at: ${context}, recovering with baseline`);
@@ -513,7 +546,11 @@ export class PromptOptimizationService {
   private async prepareIterationGradient(params: PrepareGradientParams): Promise<string> {
     const { currentBest, iteration } = params;
 
-    const sampleErrors = await this.getSampleErrors(currentBest.id, SAMPLE_ERRORS_LIMIT);
+    // Use persisted results if candidate has ID (baseline), otherwise compute from in-memory rankings
+    const sampleErrors = currentBest.id
+      ? await this.getSampleErrors(currentBest.id, SAMPLE_ERRORS_LIMIT)
+      : await this.getSampleErrorsFromRankings(currentBest.rankings, SAMPLE_ERRORS_LIMIT);
+
     const gradient = await gradientGenerator.generateGradient({
       currentPrompt: currentBest.promptText,
       metrics: {
@@ -549,7 +586,9 @@ export class PromptOptimizationService {
       variantCount: variants.length,
     });
 
-    return this.evaluateVariantsInMemory({ variants, parentVersionId: currentBest.id, iteration });
+    // Use currentBest's id if persisted, otherwise use its parent (for lineage tracking)
+    const parentVersionId = currentBest.id || currentBest.parentVersionId;
+    return this.evaluateVariantsInMemory({ variants, parentVersionId, iteration });
   }
 
   /** Executes a single optimization iteration: gradient, variants, beam update */
@@ -573,7 +612,7 @@ export class PromptOptimizationService {
       iteration,
     });
 
-    state.beam = await this.updateBeam({ state, inMemoryCandidates, beamWidth: config.beamWidth, iteration });
+    state.beam = this.updateBeam({ state, inMemoryCandidates, beamWidth: config.beamWidth, iteration });
     this.pruneTrajectory(state);
 
     const newBest = this.validateBeamState(state.beam, "after beam update", state);
@@ -605,101 +644,80 @@ export class PromptOptimizationService {
     return { convergedEarly: false, finalIteration: iteration };
   }
 
-  /** Sorts candidates by Kendall > Spearman > MAE (lower is better) */
-  private sortCandidates(candidates: CombinedCandidate[]): CombinedCandidate[] {
-    return candidates.sort((a, b) =>
+  /** Replaces beam with top candidates from combined pool (in-memory only, no persistence) */
+  private updateBeam(params: UpdateBeamParams): InMemoryCandidate[] {
+    const { state, inMemoryCandidates, beamWidth } = params;
+
+    // Combine existing beam with new candidates
+    const combined: InMemoryCandidate[] = [...state.beam, ...inMemoryCandidates];
+
+    // Sort by Kendall > Spearman > MAE (lower is better)
+    const sorted = combined.sort((a, b) =>
       (b.kendallTau - a.kendallTau) ||
       (b.spearmanCorrelation - a.spearmanCorrelation) ||
       (a.mae - b.mae)
     );
-  }
 
-  /** Merges existing beam with new candidates and returns top N */
-  private combineAndSortCandidates(
-    existing: BeamCandidate[],
-    newCandidates: InMemoryCandidate[],
-    beamWidth: number
-  ): CombinedCandidate[] {
-    const combined: CombinedCandidate[] = [
-      ...existing.map(b => ({ ...b, isNew: false as const })),
-      ...newCandidates.map(c => ({ ...c, isNew: true as const })),
-    ];
-    return this.sortCandidates(combined).slice(0, beamWidth);
-  }
-
-  /** Saves a new prompt version to the database */
-  private async persistNewCandidateVersion(
-    candidate: InMemoryCandidate,
-    rank: number,
-    runId: string,
-    iteration: number
-  ): Promise<BeamCandidate> {
-    return this.persistNewPromptVersion({
-      promptText: candidate.promptText,
-      parentVersionId: candidate.parentVersionId,
-      optimizationRunId: runId,
-      iteration: iteration + 1,
-      beamRank: rank + 1,
-      metrics: {
-        mae: candidate.mae,
-        rmse: candidate.rmse,
-        spearmanCorrelation: candidate.spearmanCorrelation,
-        kendallTau: candidate.kendallTau,
-      },
-      rankings: candidate.rankings,
-    });
-  }
-
-  /** Updates beam rank for an existing candidate */
-  private async updateExistingCandidateRank(
-    candidate: BeamCandidate & { isNew: false },
-    rank: number
-  ): Promise<BeamCandidate> {
-    await this.updateBeamRank(candidate.id, rank + 1);
-    return {
-      id: candidate.id,
-      promptText: candidate.promptText,
-      mae: candidate.mae,
-      rmse: candidate.rmse,
-      spearmanCorrelation: candidate.spearmanCorrelation,
-      kendallTau: candidate.kendallTau,
-    };
-  }
-
-  /** Persists new candidates or updates existing ones */
-  private async processBeamCandidate(params: ProcessBeamCandidateParams): Promise<BeamCandidate> {
-    const { candidate, rank, runId, iteration, state } = params;
-
-    if (candidate.isNew) {
-      const beamCandidate = await this.persistNewCandidateVersion(candidate, rank, runId, iteration);
-      state.allCandidates.push(beamCandidate);
-      return beamCandidate;
-    }
-
-    // TypeScript knows candidate.isNew is false here due to discriminated union
-    return this.updateExistingCandidateRank(candidate as BeamCandidate & { isNew: false }, rank);
-  }
-
-  /** Replaces beam with top candidates from combined pool */
-  private async updateBeam(params: UpdateBeamParams): Promise<BeamCandidate[]> {
-    const { state, inMemoryCandidates, beamWidth, iteration } = params;
-
-    const sortedCandidates = this.combineAndSortCandidates(state.beam, inMemoryCandidates, beamWidth);
-    const newBeam: BeamCandidate[] = [];
-
-    for (let rank = 0; rank < sortedCandidates.length; rank++) {
-      const candidate = sortedCandidates[rank]!;
-      const beamCandidate = await this.processBeamCandidate({
-        candidate,
-        rank,
-        runId: state.run.id,
-        iteration,
-        state,
-      });
-      newBeam.push(beamCandidate);
+    // Keep top N and add to allCandidates for trajectory
+    const newBeam = sorted.slice(0, beamWidth);
+    for (const candidate of inMemoryCandidates) {
+      if (!state.allCandidates.some(c => c.promptText === candidate.promptText)) {
+        state.allCandidates.push(candidate);
+      }
     }
 
     return newBeam;
+  }
+
+  /** Persists final beam candidates to database at end of optimization */
+  private async persistFinalBeam(
+    beam: InMemoryCandidate[],
+    runId: string,
+    finalIteration: number
+  ): Promise<BeamCandidate[]> {
+    const persistedBeam: BeamCandidate[] = [];
+
+    for (let rank = 0; rank < beam.length; rank++) {
+      const candidate = beam[rank]!;
+
+      // Skip baseline - it already exists in database
+      if (candidate.id) {
+        persistedBeam.push({
+          id: candidate.id,
+          promptText: candidate.promptText,
+          mae: candidate.mae,
+          rmse: candidate.rmse,
+          spearmanCorrelation: candidate.spearmanCorrelation,
+          kendallTau: candidate.kendallTau,
+        });
+        continue;
+      }
+
+      // Persist new candidate
+      const persisted = await this.persistNewPromptVersion({
+        promptText: candidate.promptText,
+        parentVersionId: candidate.parentVersionId,
+        optimizationRunId: runId,
+        iteration: finalIteration,
+        beamRank: rank + 1,
+        metrics: {
+          mae: candidate.mae,
+          rmse: candidate.rmse,
+          spearmanCorrelation: candidate.spearmanCorrelation,
+          kendallTau: candidate.kendallTau,
+        },
+        rankings: candidate.rankings,
+      });
+
+      persistedBeam.push(persisted);
+    }
+
+    logger.info("Prompt Optimization Service", "Final beam persisted", {
+      runId,
+      persistedCount: persistedBeam.length,
+    });
+
+    return persistedBeam;
   }
 
   /** Prunes trajectory to top N candidates by performance */
