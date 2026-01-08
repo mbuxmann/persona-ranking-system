@@ -214,7 +214,7 @@ For detailed step-by-step explanations of CSV upload processing and automatic pr
 
 ### 1. Two-Phase Approach: Qualification → Ranking
 
-**Rationale**: Separate concerns for better accuracy and cost efficiency.
+**Rationale**: Separate concerns for better accuracy, debugging and optimising.
 
 - **Phase 1 - Qualification**: Binary decision (qualified/disqualified) with reasoning
   - Filters out irrelevant leads (HR for sales platform)
@@ -231,68 +231,6 @@ For detailed step-by-step explanations of CSV upload processing and automatic pr
 - Prevents context overload
 - Harder to debug when rankings seem off
 
-### 2. Service Layer Pattern (Singletons)
-
-**Rationale**: Clear separation of concerns with testable, reusable business logic.
-
-```typescript
-class RankingService {
-  private static instance: RankingService;
-  private constructor() {}
-  static getInstance() { /* ... */ }
-
-  async rankQualifiedLeads() { /* business logic */ }
-}
-
-export const rankingService = RankingService.getInstance();
-```
-
-**Benefits**:
-- Single source of truth for each domain (ranking, qualification, import)
-- Easy to inject and mock for testing
-- Prevents accidental multiple instantiations
-- Aggregated into `services` object for clean imports
-
-### 3. AI Agent Architecture
-
-**Rationale**: Encapsulate AI-specific concerns (prompt templating, retry logic, validation).
-
-Each agent handles:
-- **Handlebars template substitution** for dynamic prompts
-- **Zod schema validation** of AI responses
-- **Retry logic** for incomplete/invalid responses
-- **Deduplication** across retries
-- **Fallback handling** when AI fails
-
-**Example**: `rankingAgent.rankQualifiedLeads()` automatically:
-1. Substitutes persona spec into prompt template
-2. Calls OpenRouter with Zod schema enforcement
-3. Validates each lead was ranked
-4. Retries for missing leads
-5. Returns validated results
-
-### 4. ORPC for Type-Safe APIs
-
-**Rationale**: End-to-end type safety from database to frontend without code generation.
-
-```typescript
-// Backend: Define once
-export const leadsRouter = {
-  list: publicProcedure
-    .input(leadsListInputSchema)
-    .output(leadWithRankingSchema.array())
-    .handler(async ({ input }) => { /* ... */ })
-};
-
-// Frontend: Auto-typed, auto-completed
-const { data: leads } = useQuery(orpc.leads.list.queryOptions());
-```
-
-**Benefits**:
-- No manual API clients to maintain
-- TypeScript errors if backend changes
-- OpenAPI documentation auto-generated
-- Integrates seamlessly with TanStack Query
 
 ### 5. Prompt Optimization with Beam Search
 

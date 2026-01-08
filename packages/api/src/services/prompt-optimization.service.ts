@@ -737,11 +737,13 @@ export class PromptOptimizationService {
   // Helper Methods
   // ============================================================================
 
-  /** Builds a map of run IDs to sequential run numbers */
+  /** Builds a map of run IDs to sequential run numbers (matching frontend logic) */
   private buildRunNumberMap(runs: { id: string }[]): Map<string, number> {
     const map = new Map<string, number>();
+    // Frontend sorts DESC (newest first) and uses: length - index
+    // Backend sorts ASC (oldest first), so we use: length - index to match
     runs.forEach((run, index) => {
-      map.set(run.id, index + 1);
+      map.set(run.id, runs.length - index);
     });
     return map;
   }
@@ -771,7 +773,7 @@ export class PromptOptimizationService {
       return "1";
     }
     const runNumber = runNumberMap.get(optimizationRunId) || 1;
-    return `${runNumber + 1}.${beamRank || 1}`;
+    return `${runNumber}.${beamRank || 1}`;
   }
 
   /** Lists all prompt versions with computed version strings */
