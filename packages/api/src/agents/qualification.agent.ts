@@ -29,7 +29,6 @@ in the persona specification.
 
 {{PERSONA_SPEC}}
 
-
 ## Decision Framework
 
 For each lead, follow this process:
@@ -42,7 +41,6 @@ For each lead, follow this process:
 4. If the lead violates any exclusion rule or fails a required criterion,
    they must be DISQUALIFIED.
 
-
 ## Qualification Rules
 
 - Qualification is a binary decision.
@@ -51,13 +49,11 @@ For each lead, follow this process:
 - Do NOT disqualify based on inferred importance or assumed responsibilities.
 - Do NOT use external knowledge.
 
-
 ## Output Requirements
 
 For each lead, return:
 1. **qualified**: boolean
 2. **reasoning**: concise explanation (1–2 sentences) referencing persona rules
-
 
 ## Leads to Qualify
 
@@ -65,8 +61,8 @@ For each lead, return:
 `;
 
 interface QualificationTemplateVariables {
-  personaSpec: string;
-  leadsSection: string;
+  PERSONA_SPEC: string;
+  QUALIFIED_LEADS_LIST: string;
 }
 
 interface QualifyLeadsParams {
@@ -220,8 +216,8 @@ export class QualificationAgent {
     if (leads.length === 0) return "";
 
     const variables: QualificationTemplateVariables = {
-      personaSpec,
-      leadsSection: this.buildLeadsSection(leads),
+      PERSONA_SPEC: personaSpec,
+      QUALIFIED_LEADS_LIST: this.buildLeadsSection(leads),
     };
 
     const template = Handlebars.compile(QUALIFICATION_PROMPT_TEMPLATE);

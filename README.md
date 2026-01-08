@@ -42,24 +42,23 @@ cp .env.example packages/api/.env
 Then update each file with your actual values:
 
 ```env
-# Database
 DATABASE_URL=postgresql://user:password@localhost:5432/leads
-
-# Authentication (currently unused but required by schema)
-BETTER_AUTH_SECRET=your-secret-key
-BETTER_AUTH_URL=http://localhost:3001
-
-# Server
 NODE_ENV=development
 CORS_ORIGIN=http://localhost:3001
 
-# AI
+# AI - OpenRouter
 OPENROUTER_API_KEY=sk-or-...
 
-# Background Jobs (Trigger.dev)
+# Optional: Override default models (all default to openai/gpt-5-mini)
+# OPENROUTER_QUALIFICATION_MODEL=openai/gpt-5-mini
+# OPENROUTER_RANKING_MODEL=openai/gpt-5-mini
+# OPENROUTER_GRADIENT_MODEL=openai/gpt-5-mini
+# OPENROUTER_VARIANT_MODEL=openai/gpt-5-mini
+
+# Background Jobs - Trigger.dev
+TRIGGER_API_KEY=tr_dev_...
 TRIGGER_SECRET_KEY=tr_dev_...
-TRIGGER_API_KEY=tr_dev_...  # Same value as TRIGGER_SECRET_KEY
-USE_TRIGGER_QUEUES=false  # Set to 'true' for async execution (requires Trigger.dev setup)
+USE_TRIGGER_QUEUES=false  # Set to 'true' for async execution
 ```
 
 **Why 3 .env files?**
@@ -359,15 +358,6 @@ Final result: 36% reduction in ranking error!
 - **Before optimization**: AI would mis-rank a lead by an average of 2.5 positions
 - **After optimization**: AI mis-ranks by only 1.6 positions on average
 - **Impact**: More accurate lead prioritization → your sales team contacts the right people first
-
-#### Visual in the App
-
-The Prompts page shows:
-- 📊 Performance comparison charts (MAE, RMSE, correlation)
-- 📝 All prompt variants with their scores
-- ⭐ Current best prompt highlighted
-- 🔄 "Start Optimization" button to run beam search
-- 📈 Generation-by-generation improvement tracking
 
 ---
 
