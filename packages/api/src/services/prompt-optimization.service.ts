@@ -737,17 +737,6 @@ export class PromptOptimizationService {
   // Helper Methods
   // ============================================================================
 
-  /** Builds a map of run IDs to sequential run numbers (matching frontend logic) */
-  private buildRunNumberMap(runs: { id: string }[]): Map<string, number> {
-    const map = new Map<string, number>();
-    // Frontend sorts DESC (newest first) and uses: length - index
-    // Backend sorts ASC (oldest first), so we use: length - index to match
-    runs.forEach((run, index) => {
-      map.set(run.id, runs.length - index);
-    });
-    return map;
-  }
-
   /** Converts string metric values to numbers, handling nulls */
   private convertMetricsToNumbers(prompt: {
     mae: string | null;
@@ -763,33 +752,36 @@ export class PromptOptimizationService {
     };
   }
 
-  /** Computes human-readable version string (e.g., "2.1") */
-  private computeVersionString(
-    optimizationRunId: string | null,
-    beamRank: number | null,
-    runNumberMap: Map<string, number>
-  ): string {
-    if (!optimizationRunId) {
-      return "1";
-    }
-    const runNumber = runNumberMap.get(optimizationRunId) || 1;
-    return `${runNumber}.${beamRank || 1}`;
+  /** Computes human-readable version number (sequential, oldest = 1) */
+  private computeVersionNumber(index: number, totalPrompts: number): number {
+    // Prompts are sorted DESC (newest first), so reverse to get oldest = 1
+    return totalPrompts - index;
   }
 
-  /** Lists all prompt versions with computed version strings */
+  /** Gets version number for a single prompt by finding its position in the full list */
+  private async getVersionForPrompt(promptId: string): Promise<string> {
+    const allPrompts = await db
+      .select({ id: promptVersions.id })
+      .from(promptVersions)
+      .orderBy(desc(promptVersions.createdAt));
+
+    const index = allPrompts.findIndex(p => p.id === promptId);
+    if (index === -1) return "?";
+    return String(this.computeVersionNumber(index, allPrompts.length));
+  }
+
+  /** Lists all prompt versions with computed version numbers */
   async listPrompts(): Promise<PromptVersion[]> {
     logger.info("Prompt Optimization Service", "Listing all prompt versions");
 
-    const [prompts, allRuns] = await Promise.all([
-      db.select().from(promptVersions).orderBy(desc(promptVersions.createdAt)),
-      db.select().from(optimizationRuns).orderBy(optimizationRuns.createdAt),
-    ]);
+    const prompts = await db
+      .select()
+      .from(promptVersions)
+      .orderBy(desc(promptVersions.createdAt));
 
-    const runNumberMap = this.buildRunNumberMap(allRuns);
-
-    return prompts.map(p => ({
+    return prompts.map((p, index) => ({
       id: p.id,
-      version: this.computeVersionString(p.optimizationRunId, p.beamRank, runNumberMap),
+      version: String(this.computeVersionNumber(index, prompts.length)),
       iterationNumber: p.iterationNumber,
       optimizationRunId: p.optimizationRunId,
       promptText: p.promptText,
@@ -806,20 +798,17 @@ export class PromptOptimizationService {
   async getPrompt(promptId: string): Promise<PromptVersionSummary> {
     logger.info("Prompt Optimization Service", "Getting prompt version", { promptId });
 
-    const [[prompt], allRuns] = await Promise.all([
-      db.select().from(promptVersions).where(eq(promptVersions.id, promptId)),
-      db.select().from(optimizationRuns).orderBy(optimizationRuns.createdAt),
-    ]);
+    const [prompt] = await db.select().from(promptVersions).where(eq(promptVersions.id, promptId));
 
     if (!prompt) {
       throw new Error(`Prompt version ${promptId} not found`);
     }
 
-    const runNumberMap = this.buildRunNumberMap(allRuns);
+    const version = await this.getVersionForPrompt(promptId);
 
     return {
       id: prompt.id,
-      version: this.computeVersionString(prompt.optimizationRunId, prompt.beamRank, runNumberMap),
+      version,
       promptText: prompt.promptText,
       isActive: prompt.isActive,
       isBaseline: prompt.isBaseline,
@@ -832,21 +821,18 @@ export class PromptOptimizationService {
   async getActivePrompt(): Promise<ActivePrompt> {
     logger.info("Prompt Optimization Service", "Getting active prompt");
 
-    const [[prompt], allRuns] = await Promise.all([
-      db.select().from(promptVersions).where(eq(promptVersions.isActive, true)),
-      db.select().from(optimizationRuns).orderBy(optimizationRuns.createdAt),
-    ]);
+    const [prompt] = await db.select().from(promptVersions).where(eq(promptVersions.isActive, true));
 
     if (!prompt) {
       throw new Error("No active prompt found");
     }
 
-    const runNumberMap = this.buildRunNumberMap(allRuns);
+    const version = await this.getVersionForPrompt(prompt.id);
 
     return {
       id: prompt.id,
       promptText: prompt.promptText,
-      version: this.computeVersionString(prompt.optimizationRunId, prompt.beamRank, runNumberMap),
+      version,
       ...this.convertMetricsToNumbers(prompt),
     };
   }
@@ -937,10 +923,7 @@ export class PromptOptimizationService {
   async exportEvaluationResults(promptId: string): Promise<EvaluationExport> {
     logger.info("Prompt Optimization Service", "Exporting evaluation results", { promptId });
 
-    const [[prompt], allRuns] = await Promise.all([
-      db.select().from(promptVersions).where(eq(promptVersions.id, promptId)),
-      db.select().from(optimizationRuns).orderBy(optimizationRuns.createdAt),
-    ]);
+    const [prompt] = await db.select().from(promptVersions).where(eq(promptVersions.id, promptId));
 
     if (!prompt) {
       throw new Error(`Prompt version ${promptId} not found`);
@@ -952,8 +935,7 @@ export class PromptOptimizationService {
       throw new Error("No evaluation results found for this prompt version");
     }
 
-    const runNumberMap = this.buildRunNumberMap(allRuns);
-    const version = this.computeVersionString(prompt.optimizationRunId, prompt.beamRank, runNumberMap);
+    const version = await this.getVersionForPrompt(promptId);
 
     const records = this.buildEvaluationExportRecords(results);
     const csvString = this.generateEvaluationCsv(records);
