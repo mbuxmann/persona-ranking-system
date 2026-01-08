@@ -196,7 +196,7 @@ export class CSVService {
       ORDER BY company_name, rank_score DESC
     `);
 
-    const rows = rankedLeads.rows.map((row) => rankedLeadRowSchema.parse(row));
+    const rows = rankedLeads.map((row: Record<string, unknown>) => rankedLeadRowSchema.parse(row));
     const records = this.transformRankedLeadsToRecords(rows);
 
     const csvString = stringify(records, {
