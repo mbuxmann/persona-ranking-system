@@ -10,7 +10,12 @@ export default defineConfig({
     tsconfigPaths(),
     tailwindcss(),
     tanstackStart(),
-    nitro({ preset: "vercel" }),
+    nitro({
+      preset: "vercel",
+      rollupConfig: {
+        external: ["pg", "pg-native"],
+      },
+    }),
     viteReact(),
   ],
   server: {
