@@ -115,16 +115,70 @@ We track 4 metrics for each prompt variant:
 | **MAE** | Mean Absolute Error (average rank difference) | Lower |
 | **RMSE** | Root Mean Square Error (penalises large errors) | Lower |
 
-**Comparison priority (for selecting best prompts):**
+#### Why These Metrics?
 
-1. **Kendall's Tau** - Primary metric. Measures how many pairs of leads are ranked in the correct relative order.
-2. **Spearman correlation** - Tiebreaker #1. Another measure of rank agreement.
-3. **MAE** - Tiebreaker #2. Average distance between predicted and actual rank.
+**Kendall's Tau** asks: *"For every pair of leads, did we get the order right?"*
 
-RMSE is tracked for monitoring but not used in comparison—it's redundant with MAE for ranking purposes.
+Imagine you have Lead A and Lead B. The correct ranking says A should be #1 and B should be #2. Kendall's Tau checks: did we rank A above B? It does this for every possible pair, then calculates the percentage of pairs we got right. A score of 1.0 means perfect ordering; 0 means random; negative means we're ranking backwards.
 
-**Why Kendall's Tau first?**
-For lead prioritisation, getting the *order* right matters more than the exact rank number. Kendall's Tau directly measures: "Did we rank Person A above Person B correctly?"
+**Spearman correlation** asks: *"How well do the rank positions match up overall?"*
+
+This also measures ranking agreement, but it's more sensitive to how far off the positions are. If we rank someone #1 who should be #5, Spearman notices that gap more than Kendall's Tau does. It's a good secondary check.
+
+**MAE (Mean Absolute Error)** asks: *"On average, how many positions off are we?"*
+
+If Lead A is ranked #3 but should be #1, that's an error of 2 positions. MAE averages all these position errors. An MAE of 1.5 means our rankings are typically 1-2 positions off from the correct answer.
+
+**RMSE (Root Mean Square Error)** asks: *"How bad are our worst mistakes?"*
+
+Similar to MAE, but it penalizes big errors more heavily. If we rank someone #10 who should be #1, RMSE treats that as much worse than being off by 1 position ten times. We track it for monitoring but don't use it for selection.
+
+#### The Priority Order Explained
+
+When comparing prompts, we check metrics in this order:
+
+1. **Kendall's Tau first** — For sales prioritisation, *relative order* is what matters most. Your sales team calls leads in order from best to worst. Whether the best lead is ranked #1 vs #2 matters less than whether they're ranked *above* the worse leads. Kendall's Tau directly measures this: "Did we put the right people ahead of the wrong people?"
+
+2. **Spearman second** — If two prompts have identical Kendall's Tau, we use Spearman as a tiebreaker. It catches edge cases where the pairwise ordering is the same but the position spread is different.
+
+3. **MAE third** — If both correlation metrics are identical (rare), we prefer the prompt with lower MAE. This favours prompts that are closer to the exact correct positions.
+
+4. **RMSE not used** — It's redundant with MAE for selection purposes. We calculate it for diagnostics (spotting outlier errors) but don't use it when choosing between prompts.
+
+#### How Prompts Are Compared
+
+When the optimizer needs to pick the best prompt from a set:
+
+```
+Comparing Prompt A vs Prompt B:
+
+Step 1: Compare Kendall's Tau
+        → If A is higher, A wins
+        → If B is higher, B wins
+        → If equal, go to Step 2
+
+Step 2: Compare Spearman correlation
+        → If A is higher, A wins
+        → If B is higher, B wins
+        → If equal, go to Step 3
+
+Step 3: Compare MAE
+        → If A is lower, A wins
+        → If B is lower, B wins
+        → If still equal, they're considered equivalent
+```
+
+This comparison is used both when selecting the top candidates each generation and when comparing against the baseline to ensure we don't regress.
+
+#### When Does Optimization Stop?
+
+The optimizer stops early if improvement plateaus:
+
+- After each generation, we check: *"How much did Kendall's Tau improve?"*
+- If improvement drops below 1% per generation (and we've run at least 2 generations), we stop
+- This prevents wasting time on diminishing returns
+
+The optimizer also stops after the configured maximum number of generations (typically 3-5).
 
 **8. Repeat (next generation)**
 Use those top 2 as starting points:
