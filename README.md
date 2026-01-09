@@ -2,6 +2,8 @@
 
 An AI-powered lead qualification and ranking system that identifies the best contacts at target companies based on an ideal customer persona. Built for the Throxy technical challenge.
 
+**[Watch Demo Preview](https://www.youtube.com/watch?v=RiUgoMT6-Vc)**
+
 ## Tech Stack
 
 - **Frontend**: TanStack Start (SSR), React 19, TanStack Router, TanStack Query, TanStack Table
