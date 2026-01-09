@@ -422,6 +422,19 @@ OPENROUTER_VARIANT_MODEL=openai/gpt-5-mini
 
 **Scalable solution**: Activate Better-Auth, add protected routes, associate data with users.
 
+---
+
+### 9. No Pagination for Leads List
+
+**Decision**: Fetch all leads in a single query without pagination, limits, or cursors.
+
+**Tradeoff:**
+- UI loads entire dataset into memory on each request
+- Performance degrades linearly with dataset size
+- Acceptable for small-to-medium datasets typical of this use case
+
+**Scalable solution**: Add cursor-based pagination with `limit`/`after` parameters. Implement virtual scrolling on frontend for large lists. Consider server-side filtering to reduce payload size.
+
 ## Available Scripts
 
 ### Development
