@@ -17,9 +17,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { columns, type Lead } from "./columns";
+import type { Lead } from "./columns";
 import { LoadingSkeleton } from "./components";
 import { useLeadsTable } from "./hooks";
+
+const COLUMN_COUNT = 7;
 
 interface LeadsTableProps {
   leads: Lead[];
@@ -37,7 +39,7 @@ export function LeadsTable({ leads, isLoading }: LeadsTableProps) {
   } = useLeadsTable({ leads });
 
   if (isLoading) {
-    return <LoadingSkeleton columnCount={columns.length} />;
+    return <LoadingSkeleton columnCount={COLUMN_COUNT} />;
   }
 
   return (
@@ -118,7 +120,7 @@ export function LeadsTable({ leads, isLoading }: LeadsTableProps) {
               ) : (
                 <TableRow>
                   <TableCell
-                    colSpan={columns.length}
+                    colSpan={COLUMN_COUNT}
                     className="h-24 text-center"
                   >
                     No leads found.

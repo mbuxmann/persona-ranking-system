@@ -24,7 +24,7 @@ export type Lead = {
   createdAt: string;
 };
 
-export const columns: ColumnDef<Lead>[] = [
+export const createColumns = (isRankDescending: boolean): ColumnDef<Lead>[] => [
   {
     accessorFn: (row) => `${row.firstName} ${row.lastName}`,
     id: "name",
@@ -68,16 +68,30 @@ export const columns: ColumnDef<Lead>[] = [
       const rankA = rowA.original.companyRank;
       const rankB = rowB.original.companyRank;
 
-      // Disqualified or not processed always go to bottom
-      if (!qualifiedA && qualifiedB) return 1;
-      if (qualifiedA && !qualifiedB) return -1;
+      // Handle qualified vs unqualified comparison
+      // We want qualified always at top regardless of sort direction
+      // When descending, TanStack inverts the result, so we pre-invert to counteract
+      if (qualifiedA && !qualifiedB) {
+        return isRankDescending ? 1 : -1;
+      }
+      if (!qualifiedA && qualifiedB) {
+        return isRankDescending ? -1 : 1;
+      }
+
+      // Both unqualified - keep stable
       if (!qualifiedA && !qualifiedB) return 0;
 
-      // Both qualified - sort by rank (nulls last)
-      if (rankA === null && rankB !== null) return 1;
-      if (rankA !== null && rankB === null) return -1;
+      // Both qualified - sort by rank (nulls last, respecting direction)
+      // Nulls should always be after ranked leads
+      if (rankA === null && rankB !== null) {
+        return isRankDescending ? -1 : 1;
+      }
+      if (rankA !== null && rankB === null) {
+        return isRankDescending ? 1 : -1;
+      }
       if (rankA === null && rankB === null) return 0;
 
+      // Both have ranks - natural numeric comparison (direction applied by TanStack)
       return (rankA ?? 0) - (rankB ?? 0);
     },
     cell: ({ row }) => {

@@ -8,7 +8,7 @@ import {
   type ColumnFiltersState,
   type SortingState,
 } from "@tanstack/react-table";
-import { columns, type Lead } from "../columns";
+import { createColumns, type Lead } from "../columns";
 
 interface UseLeadsTableOptions {
   leads: Lead[];
@@ -21,6 +21,18 @@ export function useLeadsTable({ leads }: UseLeadsTableOptions) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
   const [sourceFilter, setSourceFilter] = useState("all");
+
+  // Check if rank column is sorted descending
+  const isRankDescending = useMemo(() => {
+    const rankSort = sorting.find((s) => s.id === "companyRank");
+    return rankSort?.desc ?? false;
+  }, [sorting]);
+
+  // Create columns with current sort direction for rank
+  const columns = useMemo(
+    () => createColumns(isRankDescending),
+    [isRankDescending]
+  );
 
   const uniqueUploads = useMemo(() => {
     const uploadsMap = new Map<string, { id: string; filename: string }>();
