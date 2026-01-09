@@ -533,7 +533,7 @@ export class PromptOptimizationService {
   }
 
   /** Returns the best candidate between beam[0] and baseline for gradient generation */
-  private validateBeamState(beam: InMemoryCandidate[], context: string, state: OptimizationState): InMemoryCandidate {
+  private validateBeamState(beam: InMemoryCandidate[], state: OptimizationState): InMemoryCandidate {
     const beamBest = beam[0];
     if (!beamBest) {
       // Beam empty (first iteration) - use baseline
@@ -606,7 +606,7 @@ export class PromptOptimizationService {
   private async runIteration(params: RunIterationParams): Promise<{ converged: boolean }> {
     const { state, config, iteration } = params;
 
-    const currentBest = this.validateBeamState(state.beam, "start of iteration", state);
+    const currentBest = this.validateBeamState(state.beam, state);
 
     logger.info("Prompt Optimization Service", `Iteration ${iteration + 1}/${config.maxIterations}`, {
       beamSize: state.beam.length,
@@ -626,7 +626,7 @@ export class PromptOptimizationService {
     state.beam = this.updateBeam({ state, inMemoryCandidates, beamWidth: config.beamWidth, iteration });
     this.pruneTrajectory(state);
 
-    const newBest = this.validateBeamState(state.beam, "after beam update", state);
+    const newBest = this.validateBeamState(state.beam, state);
 
     logger.info("Prompt Optimization Service", "Beam updated", {
       iteration: iteration + 1,
